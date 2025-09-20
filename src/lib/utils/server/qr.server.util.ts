@@ -2,6 +2,8 @@
 import { dbConnect, QR, } from "@/lib/config";
 import { ApiResponse, QRType } from "@/lib/types";
 import { AppError } from "./error.server.utils";
+import { NextApiRequest } from "next";
+import { helperServerUtils } from "./helper.server.utils";
 
 export const qrUtils = {
     async create(data: QRType): Promise<ApiResponse<QRType>> {
@@ -11,9 +13,15 @@ export const qrUtils = {
         return { success: true, message: "QR created successfully", data: qr };
     },
 
-    async list(): Promise<ApiResponse<QRType[]>> {
+    async list(queryParams: Record<string, any> = {}): Promise<ApiResponse<QRType[]>> {
         await dbConnect();
-        const qrs = await QR.find().lean();
+
+        const allowedFields: (keyof QRType)[] = ["qrCodeId", "url", "isUsed", "isActive", "isDeleted"];
+
+        if (queryParams.isDeleted === undefined) queryParams.isDeleted = false;
+
+        const filter = helperServerUtils.buildQuery<QRType>(queryParams, allowedFields);
+        const qrs = await QR.find(filter).lean();
         return { success: true, message: "QRs fetched successfully", data: qrs };
     },
 
@@ -33,8 +41,9 @@ export const qrUtils = {
 
     async softDelete(qrCodeId: string): Promise<ApiResponse<QRType>> {
         await dbConnect();
-        const qr = await QR.findOneAndUpdate({ qrCodeId }, { isDeleted: true }, { new: true });
+        const qr = await QR.findOne({ qrCodeId });
         if (!qr) throw new AppError("QR not found", 404);
+        await qr.softDelete();
         return { success: true, message: "QR deleted successfully", data: qr };
     },
 

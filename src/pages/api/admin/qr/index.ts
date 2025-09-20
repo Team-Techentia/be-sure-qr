@@ -11,7 +11,7 @@ const handler = async (req: NextApiRequest, res: NextApiResponse<ApiResponse>) =
             return res.status(200).json(result);
         }
         case "GET": {
-            const result = await qrUtils.list();
+            const result = await qrUtils.list(req.query);
             return res.status(200).json(result);
         }
         default:

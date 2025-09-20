@@ -16,7 +16,13 @@ export const qrModelUtils = {
 
   // Static method
   async verify(this: IQRModel, qrCodeId: string) {
-    return this.findOne({ qrCodeId, isDeleted: false, isActive: true }).lean();
+    const qr = await this.findOneAndUpdate(
+        { qrCodeId, isDeleted: false, isActive: true, isUsed: false },
+        { isUsed: true },
+        { new: true, lean: true }
+    );
+
+    return qr;
   },
 
   // Virtual getter
