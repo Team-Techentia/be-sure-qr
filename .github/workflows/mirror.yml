@@ -19,7 +19,7 @@ jobs:
           git config --global user.name "techentia-work"
           git config --global user.email "work@techentia.in"
 
-      - name: Force push to be-sure
+      - name: Force push to be-sure-qr
         run: |
           rm -rf .git
           git init

@@ -2,7 +2,6 @@
 import { dbConnect, QR, } from "@/lib/config";
 import { ApiResponse, QRType } from "@/lib/types";
 import { AppError } from "./error.server.utils";
-import { NextApiRequest } from "next";
 import { helperServerUtils } from "./helper.server.utils";
 
 export const qrUtils = {

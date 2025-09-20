@@ -1,7 +1,6 @@
 // @/lib/api/qr.ts
 import axiosClient from "../client/axios";
 import { ApiResponse, CreateQRFormData, QRType, UpdateQRFormData } from "@/lib/types";
-import toast from "react-hot-toast";
 
 // Helper function to handle API errors
 const handleApiError = (error: any, operation: string) => {
