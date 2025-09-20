@@ -1,0 +1,1 @@
+export { qrSchema } from "./qr.schema"
