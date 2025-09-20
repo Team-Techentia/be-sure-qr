@@ -1,4 +1,5 @@
  //lib/config
+"use server";
 import mongoose, { Mongoose } from "mongoose";
 
 const MONGO_URL = process.env.MONGO_URL!;

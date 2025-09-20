@@ -1,3 +1,5 @@
 export { qrUtils } from "./server/qr.server.util"
 export { AppError, errorHandler } from "./server/error.server.utils"
 export { helperServerUtils, } from "./server/helper.server.utils"
+export { helperClientUtils, } from "./client/helper.client.utils"
+export { cn } from "./client/tailwind.client.utils"

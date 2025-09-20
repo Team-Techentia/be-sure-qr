@@ -1,7 +1,9 @@
-export interface QRType {
-  url?: string;
-  qrCodeId: string;
-  isUsed: boolean;
-  isActive: boolean;
-  isDeleted: boolean;
-}
+export type QRType = {
+    qrCodeId: string;
+    url?: string;
+    isUsed: boolean;
+    isActive: boolean;
+    isDeleted: boolean;
+    createdAt?: string;
+    updatedAt?: string;
+};

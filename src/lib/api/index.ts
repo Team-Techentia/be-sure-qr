@@ -1,0 +1,1 @@
+export { qrAPI } from "./qr/api"
