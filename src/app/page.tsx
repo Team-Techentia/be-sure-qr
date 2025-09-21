@@ -13,7 +13,7 @@ type VerificationResult = 'valid' | 'invalid' | null;
 
 const ProductVerificationPage: React.FC = () => {
   const searchParams = useSearchParams();
-  const { verifyQR } = useQR();
+  
 
   const [formData, setFormData] = useState<FormData>({
     name: 'Test',
@@ -31,48 +31,72 @@ const ProductVerificationPage: React.FC = () => {
     }));
   };
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
-    e.preventDefault();
+  const MAX_SCANS = parseInt(process.env.NEXT_PUBLIC_MAX_LIMIT || '10', 10);
 
-    if (!formData.name.trim() || !formData.mobile.trim()) {
-      toast.error("Kindly enter your details")
-      return;
-    }
+const handleSubmit = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
+  e.preventDefault();
 
-    if (!/^\d{10}$/.test(formData.mobile.trim())) {
-      toast.error("Kindly enter a valid mobile number")
-      return;
-    }
+  if (!formData.name.trim() || !formData.mobile.trim()) {
+    toast.error("Kindly enter your details");
+    return;
+  }
 
-    // Get QR code ID from URL search parameters
-    const qrCodeId = searchParams?.get('id');
-    console.log("hi")
+  if (!/^\d{10}$/.test(formData.mobile.trim())) {
+    toast.error("Kindly enter a valid mobile number");
+    return;
+  }
 
-    if (!qrCodeId) {
-      toast.error("Not a valid QR id")
-      return;
-    }
+  const qrCodeId = searchParams?.get('id');
+  if (!qrCodeId) {
+    toast.error("Not a valid QR id");
+    return;
+  }
 
-    setIsSubmitting(true);
+  setIsSubmitting(true);
 
-    const result = await verifyQR(qrCodeId);
-    console.log("hi")
-
-    if (result.valid) {
-      setVerificationResult('valid');
-      setSerialNumber(qrCodeId);
-    } else {
-      setVerificationResult('invalid');
-    }
-
+  // ✅ Check scan count
+  const result = await verifyQR(qrCodeId, true); // Pass flag to get count only
+  if (result.total >= MAX_SCANS) {
+    toast.error(`This QR code has reached the maximum limit of ${MAX_SCANS} scans`);
     setIsSubmitting(false);
-  };
+    setVerificationResult('invalid');
+    return;
+  }
+
+  // ✅ Proceed with verification
+  // const result = await verifyQR(qrCodeId);
+  console.log(result)
+  if (result.valid) {
+    setVerificationResult('valid');
+    setSerialNumber(qrCodeId);
+  } else {
+    setVerificationResult('invalid');
+  }
+
+  setIsSubmitting(false);
+};
+
 
   const resetForm = (): void => {
     setFormData({ name: '', mobile: '' });
     setVerificationResult(null);
     setSerialNumber('');
   };
+
+  const verifyQR = async (qrCodeId: string, countOnly = false) => {
+  try {
+    const response = await fetch(`/api/qr/verify/${qrCodeId}`);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const data = await response.json();
+    
+    return { valid: data.data.valid, total: data.data.count };
+  } catch (error) {
+
+    return { valid: false, total: 0 }; 
+  }
+};
 
   return (
     <div className="h-max relative max-w-md w-full mx-auto bg-gray-100 flex flex-col items-center justify-center gap-2 p-2">
