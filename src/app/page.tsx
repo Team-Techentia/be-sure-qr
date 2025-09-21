@@ -60,7 +60,7 @@ const ProductVerificationPage: React.FC = () => {
 
     if (result.valid) {
       setVerificationResult('valid');
-      setSerialNumber((Math.floor(Math.random() * 900000) + 100000).toString());
+      setSerialNumber(qrCodeId);
     } else {
       setVerificationResult('invalid');
     }
@@ -112,12 +112,17 @@ const ProductVerificationPage: React.FC = () => {
                 </button>
               </div> :
               verificationResult === "valid" ?
-                <div className="p-2.5 flex flex-col items-center text-center">
-                  <div className="w-16 h-16 bg-green-500 rounded-full mx-auto mb-4 flex items-center justify-center">
+                <div className="p-2.5 pt-0 flex flex-col items-center text-center">
+                  {/* <div className="w-16 h-16 bg-green-500 rounded-full mx-auto mb-4 flex items-center justify-center">
                     <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
                     </svg>
-                  </div>
+                  </div> */}
+                  <img
+                    src="/tick.png"
+                    alt="Product"
+                    className="w-20 h-auto mb-2 rounded-lg"
+                  />
                   <h3 className="text-green-600 text-lg font-semibold mb-2">
                     Thank you for buying original VITUM-H Product of TINETA.
                   </h3>
@@ -127,16 +132,9 @@ const ProductVerificationPage: React.FC = () => {
                   <p className="text-gray-600 text-sm mb-2">
                     Discover our complete range of products on
                   </p>
-                  <a href="https://tineta.com/" className="text-blue-500 underline text-sm">
+                  <a href="https://tineta.com/" className="text-blue-500 text-sm">
                     https://tineta.com/
                   </a>
-
-                  <button
-                    onClick={resetForm}
-                    className="mt-4 bg-blue-500 hover:bg-blue-800 text-white px-6 py-2 rounded-lg transition-colors"
-                  >
-                    Verify Another Product
-                  </button>
                 </div> :
                 <div className="p-2.5">
                   <form onSubmit={handleSubmit} className="space-y-3">
