@@ -144,18 +144,19 @@ export default function QRPage() {
 
     // Handle verify QR with toast notification
     const handleVerify = useCallback(async (qrCodeId: string) => {
-        try {
-            const result = await verifyQR(qrCodeId);
-            if (result.valid) {
-                alert(`QR Code is valid ✅\nURL: ${result.url}`);
-            } else {
-                alert("QR Code is invalid ❌");
-            }
-        } catch (error) {
-            toast.error("Failed to verify QR code");
-            alert("Failed to verify QR code");
-        }
-    }, [verifyQR]);
+  try {
+    const result = await verifyQR(qrCodeId);
+
+    if (result.valid) {
+      alert(`✅ QR Code is valid\nSerial`);
+    } else {
+      alert(`❌ QR Code is invalid or scan limit reached\nTotal Scans:}`);
+    }
+  } catch (error) {
+    toast.error("Failed to verify QR code");
+  }
+}, [verifyQR]);
+
 
     // Handle logout with error handling
     const handleLogout = useCallback(() => {

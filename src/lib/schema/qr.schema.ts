@@ -7,6 +7,7 @@ export const qrSchema = {
         url: z.string().url("Must be a valid URL").or(z.literal("")).optional(),
         isUsed: z.boolean().default(false),
         isActive: z.boolean().default(true),
+        count:z.number().default(0)
     }),
 
     qrUpdateSchema: z.object({
@@ -15,6 +16,7 @@ export const qrSchema = {
         isUsed: z.boolean().optional(),
         isActive: z.boolean().optional(),
         isDeleted: z.boolean().optional(),
+        count:z.number().default(0)
     }),
 
     // just validate ID for delete, get, verify

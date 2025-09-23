@@ -8,7 +8,8 @@ const qrSchema = new Schema<IQRDocument, IQRModel>({
     isUsed: { type: Boolean, required: true, default: false },
     isActive: { type: Boolean, default: true },
     isDeleted: { type: Boolean, default: false },
-}, { timestamps: true })
+    count: { type: Number, default: 0 },  // ✅ SCAN COUNT
+}, { timestamps: true });
 
 qrSchema.index({ qrCodeId: 1, isDeleted: 1 }, { unique: true });
 qrSchema.index({ url: 1, isDeleted: 1 }, { sparse: true });
