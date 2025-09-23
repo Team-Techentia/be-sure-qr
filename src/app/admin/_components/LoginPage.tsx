@@ -7,8 +7,8 @@ interface LoginPageProps {
 }
 
 export default function LoginPage({ login }: LoginPageProps) {
-    const [username, setUsername] = useState("admin");
-    const [password, setPassword] = useState("admin");
+    const [username, setUsername] = useState("");
+    const [password, setPassword] = useState("");
     const [isLoggingIn, setIsLoggingIn] = useState(false);
 
     const handleLogin = useCallback(async () => {
