@@ -16,8 +16,8 @@ const ProductVerificationPage: React.FC = () => {
   const { verifyQR } = useQR();
 
   const [formData, setFormData] = useState<FormData>({
-    name: 'Test',
-    mobile: '1234567890'
+    name: '',
+    mobile: ''
   });
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [verificationResult, setVerificationResult] = useState<VerificationResult>(null);
