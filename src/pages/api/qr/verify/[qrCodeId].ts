@@ -12,7 +12,7 @@ const handler = async (req: NextApiRequest, res: NextApiResponse<ApiResponse>) =
             return res.status(200).json(result);
         }
         default:
-            throw new AppError(`Method ${req.method} Not Allowed`, 405);
+            throw new AppError(`Method ${req.method} Not Allowed hai `, 405);
     }
 };
 
