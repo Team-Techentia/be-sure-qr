@@ -13,6 +13,8 @@
     "@types/axios": "^0.9.36",
     "axios": "^1.12.2",
     "clsx": "^2.1.1",
+    "csv-parser": "^3.2.0",
+    "formidable": "^3.5.4",
     "lucide-react": "^0.544.0",
     "mongoose": "^8.18.1",
     "next": "15.5.3",

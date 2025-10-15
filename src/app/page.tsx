@@ -89,9 +89,9 @@ const handleSubmit = async (e: React.FormEvent<HTMLFormElement>): Promise<void> 
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
-    const data = await response.json();
+    const res = await response.json();
     
-    return { valid: data.data.valid, total: data.data.count };
+    return { valid: res.data.valid, total: res.data.count };
   } catch (error) {
 
     return { valid: false, total: 0 }; 
