@@ -1,13 +1,13 @@
 // lib/utils/server/qr.server.util.ts
 import { dbConnect, QR } from "@/lib/config";
-import { ApiResponse, QRType } from "@/lib/types";
+import { ApiResponse, PaginationResponse, QRType } from "@/lib/types";
 import { AppError } from "./error.server.utils";
 import { helperServerUtils } from "./helper.server.utils";
 
 export const qrUtils = {
   async create(data: QRType): Promise<ApiResponse<QRType>> {
     await dbConnect();
-    
+
     // Check if QR code already exists
     const existing = await QR.findOne({ qrCodeId: data.qrCodeId });
     if (existing) {
@@ -21,25 +21,25 @@ export const qrUtils = {
       isActive: data.isActive ?? true,
       isDeleted: data.isDeleted ?? false,
     });
-    
+
     if (!qr) throw new AppError("Failed to create QR", 500);
-    
-    return { 
-      success: true, 
-      message: "QR created successfully", 
-      data: qr 
+
+    return {
+      success: true,
+      message: "QR created successfully",
+      data: qr
     };
   },
 
-  async list(queryParams: Record<string, any> = {}): Promise<ApiResponse<QRType[]>> {
+  async list(queryParams: Record<string, any> = {}): Promise<ApiResponse<{ qrs: QRType[], pagination: PaginationResponse }>> {
     await dbConnect();
 
     const allowedFields: (keyof QRType)[] = [
-      "qrCodeId", 
-      "url", 
-      "isUsed", 
-      "isActive", 
-      "isDeleted", 
+      "qrCodeId",
+      "url",
+      "isUsed",
+      "isActive",
+      "isDeleted",
       "count"
     ];
 
@@ -48,69 +48,89 @@ export const qrUtils = {
       queryParams.isDeleted = false;
     }
 
-    const filter = helperServerUtils.buildQuery<QRType>(queryParams, allowedFields);
-    const qrs = await QR.find(filter).lean().sort({ createdAt: -1 });
-    
-    return { 
-      success: true, 
-      message: "QRs fetched successfully", 
-      data: qrs 
+    const { filter, pagination, sort } = helperServerUtils.buildQuery<QRType>(queryParams, allowedFields);
+
+    const [qrs, total] = await Promise.all([
+      QR.find(filter)
+        .sort(sort)
+        .skip(pagination.skip)
+        .limit(pagination.limit)
+        .lean(),
+      QR.countDocuments({ ...filter, isDeleted: false })
+    ]);
+
+    const totalPages = Math.ceil(total / pagination.limit);
+
+    return {
+      success: true,
+      message: "QRs fetched successfully",
+      data: {
+        qrs,
+        pagination: {
+          currentPage: pagination.page,
+          totalPages,
+          totalCount: total,
+          limit: pagination.limit,
+          hasNextPage: pagination.page < totalPages,
+          hasPrevPage: pagination.page > 1,
+        },
+      }
     };
   },
 
   async get(qrCodeId: string): Promise<ApiResponse<QRType>> {
     await dbConnect();
-    
-    const qr = await QR.findOne({ 
-      qrCodeId, 
-      isDeleted: false 
+
+    const qr = await QR.findOne({
+      qrCodeId,
+      isDeleted: false
     }).lean();
-    
+
     if (!qr) throw new AppError("QR not found", 404);
-    
-    return { 
-      success: true, 
-      message: "QR fetched successfully", 
-      data: qr 
+
+    return {
+      success: true,
+      message: "QR fetched successfully",
+      data: qr
     };
   },
 
   async update(qrCodeId: string, data: Partial<QRType>): Promise<ApiResponse<QRType>> {
     await dbConnect();
-    
+
     // Don't allow updating certain fields via this method
     const { _id, createdAt, ...updateData } = data as any;
-    
+
     const qr = await QR.findOneAndUpdate(
-      { qrCodeId, isDeleted: false }, 
-      { 
+      { qrCodeId, isDeleted: false },
+      {
         ...updateData,
         updatedAt: new Date()
-      }, 
+      },
       { new: true }
     );
-    
+
     if (!qr) throw new AppError("QR not found", 404);
-    
-    return { 
-      success: true, 
-      message: "QR updated successfully", 
-      data: qr 
+
+    return {
+      success: true,
+      message: "QR updated successfully",
+      data: qr
     };
   },
 
   async softDelete(qrCodeId: string): Promise<ApiResponse<QRType>> {
     await dbConnect();
-    
+
     const qr = await QR.findOne({ qrCodeId, isDeleted: false });
     if (!qr) throw new AppError("QR not found", 404);
-    
+
     await qr.softDelete();
-    
-    return { 
-      success: true, 
-      message: "QR deleted successfully", 
-      data: qr 
+
+    return {
+      success: true,
+      message: "QR deleted successfully",
+      data: qr
     };
   },
 
@@ -118,10 +138,10 @@ export const qrUtils = {
     await dbConnect();
 
     const qr = await QR.findOneAndUpdate(
-      { 
-        qrCodeId, 
-        isDeleted: false, 
-        isActive: true 
+      {
+        qrCodeId,
+        isDeleted: false,
+        isActive: true
       },
       { $inc: { count: 1 } },
       { new: true, lean: true }
@@ -162,8 +182,8 @@ export const qrUtils = {
 
     // Check for existing QR codes in batch
     const qrCodeIds = sanitizedRows.map(r => r.qrCodeId);
-    const existingQRs = await QR.find({ 
-      qrCodeId: { $in: qrCodeIds } 
+    const existingQRs = await QR.find({
+      qrCodeId: { $in: qrCodeIds }
     }).select('qrCodeId').lean();
 
     const existingIds = new Set(existingQRs.map(qr => qr.qrCodeId));
@@ -178,7 +198,7 @@ export const qrUtils = {
 
     try {
       // Insert with ordered: false to continue on error
-      const result = await QR.insertMany(sanitizedRows, { 
+      const result = await QR.insertMany(sanitizedRows, {
         ordered: false
       });
 
@@ -195,7 +215,7 @@ export const qrUtils = {
       if (err.code === 11000 || err.name === 'BulkWriteError') {
         const insertedCount = err.result?.nInserted || 0;
         const errors = err.writeErrors || [];
-        
+
         if (insertedCount > 0) {
           throw new AppError(
             `Partial insert: ${insertedCount} succeeded, ${errors.length} failed due to duplicates`,
@@ -216,24 +236,24 @@ export const qrUtils = {
     await dbConnect();
 
     const result = await QR.updateMany(
-      { 
+      {
         qrCodeId: { $in: qrCodeIds },
-        isDeleted: false 
+        isDeleted: false
       },
-      { 
-        $set: { 
-          isDeleted: true, 
-          updatedAt: new Date() 
-        } 
+      {
+        $set: {
+          isDeleted: true,
+          updatedAt: new Date()
+        }
       }
     );
 
     return {
       success: true,
       message: `Bulk delete completed: ${result.modifiedCount} QR codes deleted`,
-      data: { 
-        matched: result.matchedCount, 
-        modified: result.modifiedCount 
+      data: {
+        matched: result.matchedCount,
+        modified: result.modifiedCount
       }
     };
   },

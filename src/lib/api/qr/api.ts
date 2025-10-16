@@ -1,11 +1,11 @@
 // @/lib/api/qr.ts
 import axiosClient from "../client/axios";
-import { ApiResponse, CreateQRFormData, QRType, UpdateQRFormData } from "@/lib/types";
+import { ApiResponse, CreateQRFormData, PaginationResponse, QRType, UpdateQRFormData } from "@/lib/types";
 
 // Helper function to handle API errors
 const handleApiError = (error: any, operation: string) => {
   let errorMessage = `Failed to ${operation}`;
-  
+
   if (error?.response?.data?.message) {
     errorMessage = error.response.data.message;
   } else if (error?.response?.status) {
@@ -46,16 +46,27 @@ const handleApiError = (error: any, operation: string) => {
 
 export const qrAPI = {
   create: async (data: CreateQRFormData) => {
-    try {      
+    try {
       return await axiosClient.post<ApiResponse<QRType>>("/admin/qr", data);
     } catch (error) {
       handleApiError(error, "create QR code");
     }
   },
 
-  list: async () => {
+  list: async (queryParams?: Record<string, any>) => {
     try {
-      return await axiosClient.get<ApiResponse<QRType[]>>("/admin/qr");
+      const params = new URLSearchParams();
+
+      if (queryParams) {
+        Object.entries(queryParams).forEach(([key, value]) => {
+          if (value !== undefined && value !== null && value !== "") {
+            params.append(key, String(value));
+          }
+        });
+      }
+
+      const queryString = params.toString();
+      return await axiosClient.get<ApiResponse<{ qrs: QRType[], pagination: PaginationResponse }>>(`/admin/qr${queryString ? `?${queryString}` : ""}`);
     } catch (error) {
       handleApiError(error, "fetch QR codes");
     }
@@ -66,7 +77,7 @@ export const qrAPI = {
       if (!qrCodeId?.trim()) {
         throw new Error("QR Code ID is required");
       }
-      
+
       return await axiosClient.get<ApiResponse<QRType>>(`/admin/qr/${qrCodeId}`);
     } catch (error) {
       handleApiError(error, "fetch QR code");
@@ -78,7 +89,7 @@ export const qrAPI = {
       if (!qrCodeId?.trim()) {
         throw new Error("QR Code ID is required");
       }
-      
+
       return await axiosClient.put<ApiResponse<QRType>>(`/admin/qr/${qrCodeId}`, data);
     } catch (error) {
       handleApiError(error, "update QR code");
@@ -90,7 +101,7 @@ export const qrAPI = {
       if (!qrCodeId?.trim()) {
         throw new Error("QR Code ID is required");
       }
-      
+
       return await axiosClient.delete<ApiResponse<null>>(`/admin/qr/${qrCodeId}`);
     } catch (error) {
       handleApiError(error, "delete QR code");
@@ -102,7 +113,7 @@ export const qrAPI = {
       if (!qrCodeId?.trim()) {
         throw new Error("QR Code ID is required");
       }
-      
+
       return await axiosClient.get<ApiResponse<{ valid: boolean; qrCodeId: string; url: string }>>(
         `/qr/verify/${qrCodeId}`
       );

@@ -11,12 +11,27 @@ import toast from "react-hot-toast";
 
 export default function QRPage() {
     const { isAuthenticated, login, logout, isAuthLoading } = useAuth();
-    const { qrs, isLoading, error, fetchQRs, createQR, updateQR, deleteQR, verifyQR, totalQRs, activeQRs, usedQRs } = useQR();
+    const { 
+        qrs, 
+        isLoading, 
+        error, 
+        fetchQRs, 
+        createQR, 
+        updateQR, 
+        deleteQR, 
+        verifyQR, 
+        fetchStats,
+        totalQRs, 
+        activeQRs, 
+        usedQRs,
+        pagination 
+    } = useQR();
 
     // Pagination state
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage, setItemsPerPage] = useState(50);
     const [searchTerm, setSearchTerm] = useState("");
+    const [debouncedSearch, setDebouncedSearch] = useState("");
 
     // Modal states
     const { isOpen: isCreateModalOpen, openModal: openCreateModal, closeModal: closeCreateModal } = useModal();
@@ -38,47 +53,52 @@ export default function QRPage() {
 
     const [updateForm, setUpdateForm] = useState<QRType | null>(null);
 
-    // Fetch QRs when authenticated
+    // Debounce search term
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setDebouncedSearch(searchTerm);
+            setCurrentPage(1); // Reset to first page on search
+        }, 500);
+
+        return () => clearTimeout(timer);
+    }, [searchTerm]);
+
+    // Fetch QRs when authenticated or when pagination/search changes
     useEffect(() => {
         if (isAuthenticated && !isAuthLoading) {
-            fetchQRs().catch((error) => {
+            fetchQRs({
+                page: currentPage,
+                limit: itemsPerPage,
+                search: debouncedSearch,
+            }).catch((error) => {
                 toast.error("Failed to load QR codes");
             });
         }
-    }, [isAuthenticated, isAuthLoading, fetchQRs]);
+    }, [isAuthenticated, isAuthLoading, currentPage, itemsPerPage, debouncedSearch, fetchQRs]);
 
-    // Filter QRs based on search term
-    const filteredQRs = useCallback(() => {
-        if (!searchTerm.trim()) return qrs;
-        
-        const search = searchTerm.toLowerCase();
-        return qrs.filter(qr => 
-            qr.qrCodeId.toLowerCase().includes(search) ||
-            (qr.url && qr.url.toLowerCase().includes(search))
-        );
-    }, [qrs, searchTerm]);
-
-    // Pagination calculations
-    const filtered = filteredQRs();
-    const totalPages = Math.ceil(filtered.length / itemsPerPage);
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    const endIndex = startIndex + itemsPerPage;
-    const currentQRs = filtered.slice(startIndex, endIndex);
-
-    // Reset to page 1 when search changes
+    // Fetch stats on initial load
     useEffect(() => {
-        setCurrentPage(1);
-    }, [searchTerm]);
+        if (isAuthenticated && !isAuthLoading) {
+            fetchStats();
+        }
+    }, [isAuthenticated, isAuthLoading, fetchStats]);
 
     // Pagination handlers
     const goToPage = (page: number) => {
-        setCurrentPage(Math.max(1, Math.min(page, totalPages)));
+        const validPage = Math.max(1, Math.min(page, pagination.totalPages));
+        setCurrentPage(validPage);
     };
 
     const goToFirstPage = () => setCurrentPage(1);
-    const goToLastPage = () => setCurrentPage(totalPages);
+    const goToLastPage = () => setCurrentPage(pagination.totalPages);
     const goToPreviousPage = () => setCurrentPage(prev => Math.max(1, prev - 1));
-    const goToNextPage = () => setCurrentPage(prev => Math.min(totalPages, prev + 1));
+    const goToNextPage = () => setCurrentPage(prev => Math.min(pagination.totalPages, prev + 1));
+
+    // Handle items per page change
+    const handleItemsPerPageChange = (newLimit: number) => {
+        setItemsPerPage(newLimit);
+        setCurrentPage(1);
+    };
 
     // Handle create QR
     const handleCreate = useCallback(async () => {
@@ -92,11 +112,18 @@ export default function QRPage() {
             if (success) {
                 closeCreateModal();
                 setCreateForm({ qrCodeId: "", url: "", isUsed: false, isActive: true, isDeleted: false });
+                
+                // Refresh current page
+                await fetchQRs({
+                    page: currentPage,
+                    limit: itemsPerPage,
+                    search: debouncedSearch,
+                });
             }
         } catch (error) {
             toast.error("Failed to create QR code");
         }
-    }, [createForm, createQR, closeCreateModal]);
+    }, [createForm, createQR, closeCreateModal, currentPage, itemsPerPage, debouncedSearch, fetchQRs]);
 
     // Handle open update modal
     const handleOpenUpdateModal = useCallback((qr: QRType) => {
@@ -118,11 +145,18 @@ export default function QRPage() {
             if (success) {
                 closeUpdateModal();
                 setUpdateForm(null);
+                
+                // Refresh current page
+                await fetchQRs({
+                    page: currentPage,
+                    limit: itemsPerPage,
+                    search: debouncedSearch,
+                });
             }
         } catch (error) {
             toast.error("Failed to update QR code");
         }
-    }, [updateForm, updateQR, closeUpdateModal]);
+    }, [updateForm, updateQR, closeUpdateModal, currentPage, itemsPerPage, debouncedSearch, fetchQRs]);
 
     // Handle delete QR with confirmation
     const handleDelete = useCallback(async (qrCodeId: string) => {
@@ -130,13 +164,18 @@ export default function QRPage() {
         
         try {
             const success = await deleteQR(qrCodeId);
-            if (!success) {
-                toast.error("Failed to delete QR code");
+            if (success) {
+                // Refresh current page
+                await fetchQRs({
+                    page: currentPage,
+                    limit: itemsPerPage,
+                    search: debouncedSearch,
+                });
             }
         } catch (error) {
             toast.error("An error occurred while deleting QR code");
         }
-    }, [deleteQR]);
+    }, [deleteQR, currentPage, itemsPerPage, debouncedSearch, fetchQRs]);
 
     // Handle verify QR with toast notification
     const handleVerify = useCallback(async (qrCodeId: string) => {
@@ -144,9 +183,9 @@ export default function QRPage() {
             const result = await verifyQR(qrCodeId);
 
             if (result.valid) {
-                alert(`✅ QR Code is valid\nSerial`);
+                alert(`✅ QR Code is valid\nURL: ${result.url}`);
             } else {
-                alert(`❌ QR Code is invalid or scan limit reached\nTotal Scans:}`);
+                alert(`❌ QR Code is invalid\n${result.message}`);
             }
         } catch (error) {
             toast.error("Failed to verify QR code");
@@ -172,6 +211,10 @@ export default function QRPage() {
         return <LoginPage login={login} />;
     }
 
+    // Calculate display range
+    const startIndex = (currentPage - 1) * itemsPerPage + 1;
+    const endIndex = Math.min(currentPage * itemsPerPage, pagination.totalCount);
+
     // Main QR management page
     return (
         <div className="p-6 h-[calc(100vh-200px)]">
@@ -193,15 +236,15 @@ export default function QRPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                     <div className="text-blue-600 text-sm font-medium">Total QRs</div>
-                    <div className="text-2xl font-bold text-blue-800">{totalQRs}</div>
+                    <div className="text-2xl font-bold text-blue-800">{totalQRs.toLocaleString()}</div>
                 </div>
                 <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                     <div className="text-green-600 text-sm font-medium">Active QRs</div>
-                    <div className="text-2xl font-bold text-green-800">{activeQRs}</div>
+                    <div className="text-2xl font-bold text-green-800">{activeQRs.toLocaleString()}</div>
                 </div>
                 <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
                     <div className="text-orange-600 text-sm font-medium">Used QRs</div>
-                    <div className="text-2xl font-bold text-orange-800">{usedQRs}</div>
+                    <div className="text-2xl font-bold text-orange-800">{usedQRs.toLocaleString()}</div>
                 </div>
             </div>
 
@@ -218,7 +261,7 @@ export default function QRPage() {
                 <div className="flex-1 max-w-md">
                     <input
                         type="text"
-                        placeholder="Search by QR Code ID or URL..."
+                        placeholder="Search by QR Code ID..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                         className="border border-gray-300 px-4 py-2 w-full rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -227,10 +270,7 @@ export default function QRPage() {
                 <div className="flex gap-2 items-center">
                     <select
                         value={itemsPerPage}
-                        onChange={(e) => {
-                            setItemsPerPage(Number(e.target.value));
-                            setCurrentPage(1);
-                        }}
+                        onChange={(e) => handleItemsPerPageChange(Number(e.target.value))}
                         className="border border-gray-300 px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
                         <option value={25}>25 per page</option>
@@ -251,7 +291,7 @@ export default function QRPage() {
                 <div className="flex justify-center items-center h-32">
                     <p className="text-gray-600">Loading QRs...</p>
                 </div>
-            ) : filtered.length === 0 ? (
+            ) : qrs.length === 0 ? (
                 <div className="text-center py-8">
                     <p className="text-gray-600">
                         {searchTerm ? "No QR codes found matching your search." : "No QR codes found. Create your first QR code!"}
@@ -261,8 +301,8 @@ export default function QRPage() {
                 <>
                     {/* Results Info */}
                     <div className="mb-4 text-sm text-gray-600">
-                        Showing {startIndex + 1} to {Math.min(endIndex, filtered.length)} of {filtered.length} QR codes
-                        {searchTerm && ` (filtered from ${qrs.length} total)`}
+                        Showing {startIndex} to {endIndex} of {pagination.totalCount.toLocaleString()} QR codes
+                        {searchTerm && " (filtered)"}
                     </div>
 
                     {/* Table */}
@@ -277,7 +317,7 @@ export default function QRPage() {
                                 </tr>
                             </thead>
                             <tbody>
-                                {currentQRs.map((qr) => (
+                                {qrs.map((qr) => (
                                     <tr key={qr.qrCodeId} className="hover:bg-gray-50">
                                         <td className="border border-gray-300 p-3 font-mono text-sm">{qr.qrCodeId}</td>
                                         <td className="border border-gray-300 p-3 max-w-xs truncate" title={qr.url}>
@@ -330,23 +370,23 @@ export default function QRPage() {
                     </div>
 
                     {/* Pagination Controls */}
-                    {totalPages > 1 && (
+                    {pagination.totalPages > 1 && (
                         <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
                             <div className="text-sm text-gray-600">
-                                Page {currentPage} of {totalPages}
+                                Page {currentPage} of {pagination.totalPages.toLocaleString()}
                             </div>
                             
                             <div className="flex gap-2 items-center flex-wrap justify-center">
                                 <button
                                     onClick={goToFirstPage}
-                                    disabled={currentPage === 1}
+                                    disabled={currentPage === 1 || isLoading}
                                     className="px-3 py-1 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                                 >
                                     First
                                 </button>
                                 <button
                                     onClick={goToPreviousPage}
-                                    disabled={currentPage === 1}
+                                    disabled={!pagination.hasPrevPage || isLoading}
                                     className="px-3 py-1 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                                 >
                                     Previous
@@ -354,14 +394,14 @@ export default function QRPage() {
                                 
                                 {/* Page Numbers */}
                                 <div className="flex gap-1">
-                                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                                    {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
                                         let pageNum;
-                                        if (totalPages <= 5) {
+                                        if (pagination.totalPages <= 5) {
                                             pageNum = i + 1;
                                         } else if (currentPage <= 3) {
                                             pageNum = i + 1;
-                                        } else if (currentPage >= totalPages - 2) {
-                                            pageNum = totalPages - 4 + i;
+                                        } else if (currentPage >= pagination.totalPages - 2) {
+                                            pageNum = pagination.totalPages - 4 + i;
                                         } else {
                                             pageNum = currentPage - 2 + i;
                                         }
@@ -370,6 +410,7 @@ export default function QRPage() {
                                             <button
                                                 key={pageNum}
                                                 onClick={() => goToPage(pageNum)}
+                                                disabled={isLoading}
                                                 className={`px-3 py-1 border rounded transition-colors ${
                                                     currentPage === pageNum
                                                         ? "bg-blue-500 text-white border-blue-500"
@@ -384,14 +425,14 @@ export default function QRPage() {
                                 
                                 <button
                                     onClick={goToNextPage}
-                                    disabled={currentPage === totalPages}
+                                    disabled={!pagination.hasNextPage || isLoading}
                                     className="px-3 py-1 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                                 >
                                     Next
                                 </button>
                                 <button
                                     onClick={goToLastPage}
-                                    disabled={currentPage === totalPages}
+                                    disabled={currentPage === pagination.totalPages || isLoading}
                                     className="px-3 py-1 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                                 >
                                     Last
@@ -404,7 +445,7 @@ export default function QRPage() {
                                 <input
                                     type="number"
                                     min={1}
-                                    max={totalPages}
+                                    max={pagination.totalPages}
                                     value={currentPage}
                                     onChange={(e) => {
                                         const page = parseInt(e.target.value);
@@ -412,6 +453,7 @@ export default function QRPage() {
                                             goToPage(page);
                                         }
                                     }}
+                                    disabled={isLoading}
                                     className="border border-gray-300 px-2 py-1 w-20 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 />
                             </div>
