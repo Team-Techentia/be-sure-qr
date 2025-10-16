@@ -23,8 +23,8 @@ const eslintConfig = [
       "@typescript-eslint/no-explicit-any":"off",
       "@typescript-eslint/no-unused-vars":"off",
       "react-hooks/rules-of-hooks":"off",
-      "":"off",
-      "":"off",
+      "prefer-const":"off",
+      "@next/next/no-img-element":"off",git 
     }
   },
 ];

@@ -13,6 +13,11 @@ export default function QRPage() {
     const { isAuthenticated, login, logout, isAuthLoading } = useAuth();
     const { qrs, isLoading, error, fetchQRs, createQR, updateQR, deleteQR, verifyQR, totalQRs, activeQRs, usedQRs } = useQR();
 
+    // Pagination state
+    const [currentPage, setCurrentPage] = useState(1);
+    const [itemsPerPage, setItemsPerPage] = useState(50);
+    const [searchTerm, setSearchTerm] = useState("");
+
     // Modal states
     const { isOpen: isCreateModalOpen, openModal: openCreateModal, closeModal: closeCreateModal } = useModal();
     const { isOpen: isUpdateModalOpen, openModal: openUpdateModal, closeModal: closeUpdateModal } = useModal();
@@ -41,6 +46,39 @@ export default function QRPage() {
             });
         }
     }, [isAuthenticated, isAuthLoading, fetchQRs]);
+
+    // Filter QRs based on search term
+    const filteredQRs = useCallback(() => {
+        if (!searchTerm.trim()) return qrs;
+        
+        const search = searchTerm.toLowerCase();
+        return qrs.filter(qr => 
+            qr.qrCodeId.toLowerCase().includes(search) ||
+            (qr.url && qr.url.toLowerCase().includes(search))
+        );
+    }, [qrs, searchTerm]);
+
+    // Pagination calculations
+    const filtered = filteredQRs();
+    const totalPages = Math.ceil(filtered.length / itemsPerPage);
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const currentQRs = filtered.slice(startIndex, endIndex);
+
+    // Reset to page 1 when search changes
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchTerm]);
+
+    // Pagination handlers
+    const goToPage = (page: number) => {
+        setCurrentPage(Math.max(1, Math.min(page, totalPages)));
+    };
+
+    const goToFirstPage = () => setCurrentPage(1);
+    const goToLastPage = () => setCurrentPage(totalPages);
+    const goToPreviousPage = () => setCurrentPage(prev => Math.max(1, prev - 1));
+    const goToNextPage = () => setCurrentPage(prev => Math.min(totalPages, prev + 1));
 
     // Handle create QR
     const handleCreate = useCallback(async () => {
@@ -86,48 +124,6 @@ export default function QRPage() {
         }
     }, [updateForm, updateQR, closeUpdateModal]);
 
-    // Handle toggle active status
-    const handleToggleActive = useCallback(async (qrCodeId: string, currentStatus: boolean) => {
-        try {
-            const qr = qrs.find(q => q.qrCodeId === qrCodeId);
-            if (!qr) return;
-
-            const success = await updateQR(qrCodeId, {
-                url: qr.url,
-                isActive: !currentStatus,
-                isUsed: qr.isUsed,
-                isDeleted: qr.isDeleted,
-            });
-
-            if (success) {
-                toast.success(`QR code ${!currentStatus ? 'activated' : 'deactivated'} successfully`);
-            }
-        } catch (error) {
-            toast.error("Failed to update QR status");
-        }
-    }, [qrs, updateQR]);
-
-    // Handle toggle used status
-    const handleToggleUsed = useCallback(async (qrCodeId: string, currentStatus: boolean) => {
-        try {
-            const qr = qrs.find(q => q.qrCodeId === qrCodeId);
-            if (!qr) return;
-
-            const success = await updateQR(qrCodeId, {
-                url: qr.url,
-                isActive: qr.isActive,
-                isUsed: !currentStatus,
-                isDeleted: qr.isDeleted,
-            });
-
-            if (success) {
-                toast.success(`QR code marked as ${!currentStatus ? 'used' : 'unused'} successfully`);
-            }
-        } catch (error) {
-            toast.error("Failed to update QR status");
-        }
-    }, [qrs, updateQR]);
-
     // Handle delete QR with confirmation
     const handleDelete = useCallback(async (qrCodeId: string) => {
         if (!confirm("Are you sure you want to delete this QR code?")) return;
@@ -144,19 +140,18 @@ export default function QRPage() {
 
     // Handle verify QR with toast notification
     const handleVerify = useCallback(async (qrCodeId: string) => {
-  try {
-    const result = await verifyQR(qrCodeId);
+        try {
+            const result = await verifyQR(qrCodeId);
 
-    if (result.valid) {
-      alert(`✅ QR Code is valid\nSerial`);
-    } else {
-      alert(`❌ QR Code is invalid or scan limit reached\nTotal Scans:}`);
-    }
-  } catch (error) {
-    toast.error("Failed to verify QR code");
-  }
-}, [verifyQR]);
-
+            if (result.valid) {
+                alert(`✅ QR Code is valid\nSerial`);
+            } else {
+                alert(`❌ QR Code is invalid or scan limit reached\nTotal Scans:}`);
+            }
+        } catch (error) {
+            toast.error("Failed to verify QR code");
+        }
+    }, [verifyQR]);
 
     // Handle logout with error handling
     const handleLogout = useCallback(() => {
@@ -218,87 +213,211 @@ export default function QRPage() {
                 </div>
             )}
 
-            {/* Actions */}
-            <div className="mb-6">
-                <button
-                    onClick={openCreateModal}
-                    className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg transition-colors"
-                >
-                    Create New QR
-                </button>
+            {/* Search and Actions Bar */}
+            <div className="mb-6 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+                <div className="flex-1 max-w-md">
+                    <input
+                        type="text"
+                        placeholder="Search by QR Code ID or URL..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="border border-gray-300 px-4 py-2 w-full rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                </div>
+                <div className="flex gap-2 items-center">
+                    <select
+                        value={itemsPerPage}
+                        onChange={(e) => {
+                            setItemsPerPage(Number(e.target.value));
+                            setCurrentPage(1);
+                        }}
+                        className="border border-gray-300 px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                        <option value={25}>25 per page</option>
+                        <option value={50}>50 per page</option>
+                        <option value={100}>100 per page</option>
+                        <option value={200}>200 per page</option>
+                    </select>
+                    <button
+                        onClick={openCreateModal}
+                        className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg transition-colors whitespace-nowrap"
+                    >
+                        Create New QR
+                    </button>
+                </div>
             </div>
 
             {isLoading ? (
                 <div className="flex justify-center items-center h-32">
                     <p className="text-gray-600">Loading QRs...</p>
                 </div>
-            ) : qrs.length === 0 ? (
+            ) : filtered.length === 0 ? (
                 <div className="text-center py-8">
-                    <p className="text-gray-600">No QR codes found. Create your first QR code!</p>
+                    <p className="text-gray-600">
+                        {searchTerm ? "No QR codes found matching your search." : "No QR codes found. Create your first QR code!"}
+                    </p>
                 </div>
             ) : (
-                <div className="overflow-x-auto">
-                    <table className="w-full border-collapse border border-gray-300">
-                        <thead className="bg-gray-50">
-                            <tr>
-                                <th className="border border-gray-300 p-3 text-left">QR Code ID</th>
-                                <th className="border border-gray-300 p-3 text-left">URL</th>
-                                <th className="border border-gray-300 p-3 text-left">Status</th>
-                                <th className="border border-gray-300 p-3 text-left">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {qrs.map((qr) => (
-                                <tr key={qr.qrCodeId} className="hover:bg-gray-50">
-                                    <td className="border border-gray-300 p-3 font-mono text-sm">{qr.qrCodeId}</td>
-                                    <td className="border border-gray-300 p-3 max-w-xs truncate" title={qr.url}>
-                                        {qr.url}
-                                    </td>
-                                    <td className="border border-gray-300 p-3">
-                                        <div className="flex flex-wrap gap-1">
-                                            {qr.isActive && !qr.isDeleted && (
-                                                <span className="bg-green-100 text-green-800 px-2 py-1 text-xs rounded">Active</span>
-                                            )}
-                                            {!qr.isActive && (
-                                                <span className="bg-gray-100 text-gray-800 px-2 py-1 text-xs rounded">Inactive</span>
-                                            )}
-                                            {qr.isUsed && (
-                                                <span className="bg-orange-100 text-orange-800 px-2 py-1 text-xs rounded">Used</span>
-                                            )}
-                                            {qr.isDeleted && (
-                                                <span className="bg-red-100 text-red-800 px-2 py-1 text-xs rounded">Deleted</span>
-                                            )}
-                                        </div>
-                                    </td>
-                                    <td className="border border-gray-300 p-3">
-                                        <div className="flex flex-wrap gap-2">
-                                            <button
-                                                onClick={() => handleOpenUpdateModal(qr)}
-                                                className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm transition-colors"
-                                                disabled={qr.isDeleted}
-                                            >
-                                                Edit
-                                            </button>
-                                            <button
-                                                onClick={() => handleDelete(qr.qrCodeId)}
-                                                className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm transition-colors"
-                                                disabled={qr.isDeleted}
-                                            >
-                                                Delete
-                                            </button>
-                                            <button
-                                                onClick={() => handleVerify(qr.qrCodeId)}
-                                                className="bg-purple-500 hover:bg-purple-600 text-white px-3 py-1 rounded text-sm transition-colors"
-                                            >
-                                                Verify
-                                            </button>
-                                        </div>
-                                    </td>
+                <>
+                    {/* Results Info */}
+                    <div className="mb-4 text-sm text-gray-600">
+                        Showing {startIndex + 1} to {Math.min(endIndex, filtered.length)} of {filtered.length} QR codes
+                        {searchTerm && ` (filtered from ${qrs.length} total)`}
+                    </div>
+
+                    {/* Table */}
+                    <div className="overflow-x-auto mb-6">
+                        <table className="w-full border-collapse border border-gray-300">
+                            <thead className="bg-gray-50">
+                                <tr>
+                                    <th className="border border-gray-300 p-3 text-left">QR Code ID</th>
+                                    <th className="border border-gray-300 p-3 text-left">URL</th>
+                                    <th className="border border-gray-300 p-3 text-left">Status</th>
+                                    <th className="border border-gray-300 p-3 text-left">Actions</th>
                                 </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
+                            </thead>
+                            <tbody>
+                                {currentQRs.map((qr) => (
+                                    <tr key={qr.qrCodeId} className="hover:bg-gray-50">
+                                        <td className="border border-gray-300 p-3 font-mono text-sm">{qr.qrCodeId}</td>
+                                        <td className="border border-gray-300 p-3 max-w-xs truncate" title={qr.url}>
+                                            {qr.url}
+                                        </td>
+                                        <td className="border border-gray-300 p-3">
+                                            <div className="flex flex-wrap gap-1">
+                                                {qr.isActive && !qr.isDeleted && (
+                                                    <span className="bg-green-100 text-green-800 px-2 py-1 text-xs rounded">Active</span>
+                                                )}
+                                                {!qr.isActive && (
+                                                    <span className="bg-gray-100 text-gray-800 px-2 py-1 text-xs rounded">Inactive</span>
+                                                )}
+                                                {qr.isUsed && (
+                                                    <span className="bg-orange-100 text-orange-800 px-2 py-1 text-xs rounded">Used</span>
+                                                )}
+                                                {qr.isDeleted && (
+                                                    <span className="bg-red-100 text-red-800 px-2 py-1 text-xs rounded">Deleted</span>
+                                                )}
+                                            </div>
+                                        </td>
+                                        <td className="border border-gray-300 p-3">
+                                            <div className="flex flex-wrap gap-2">
+                                                <button
+                                                    onClick={() => handleOpenUpdateModal(qr)}
+                                                    className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm transition-colors"
+                                                    disabled={qr.isDeleted}
+                                                >
+                                                    Edit
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDelete(qr.qrCodeId)}
+                                                    className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm transition-colors"
+                                                    disabled={qr.isDeleted}
+                                                >
+                                                    Delete
+                                                </button>
+                                                <button
+                                                    onClick={() => handleVerify(qr.qrCodeId)}
+                                                    className="bg-purple-500 hover:bg-purple-600 text-white px-3 py-1 rounded text-sm transition-colors"
+                                                >
+                                                    Verify
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    {/* Pagination Controls */}
+                    {totalPages > 1 && (
+                        <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
+                            <div className="text-sm text-gray-600">
+                                Page {currentPage} of {totalPages}
+                            </div>
+                            
+                            <div className="flex gap-2 items-center flex-wrap justify-center">
+                                <button
+                                    onClick={goToFirstPage}
+                                    disabled={currentPage === 1}
+                                    className="px-3 py-1 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                >
+                                    First
+                                </button>
+                                <button
+                                    onClick={goToPreviousPage}
+                                    disabled={currentPage === 1}
+                                    className="px-3 py-1 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                >
+                                    Previous
+                                </button>
+                                
+                                {/* Page Numbers */}
+                                <div className="flex gap-1">
+                                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                                        let pageNum;
+                                        if (totalPages <= 5) {
+                                            pageNum = i + 1;
+                                        } else if (currentPage <= 3) {
+                                            pageNum = i + 1;
+                                        } else if (currentPage >= totalPages - 2) {
+                                            pageNum = totalPages - 4 + i;
+                                        } else {
+                                            pageNum = currentPage - 2 + i;
+                                        }
+                                        
+                                        return (
+                                            <button
+                                                key={pageNum}
+                                                onClick={() => goToPage(pageNum)}
+                                                className={`px-3 py-1 border rounded transition-colors ${
+                                                    currentPage === pageNum
+                                                        ? "bg-blue-500 text-white border-blue-500"
+                                                        : "border-gray-300 hover:bg-gray-50"
+                                                }`}
+                                            >
+                                                {pageNum}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                                
+                                <button
+                                    onClick={goToNextPage}
+                                    disabled={currentPage === totalPages}
+                                    className="px-3 py-1 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                >
+                                    Next
+                                </button>
+                                <button
+                                    onClick={goToLastPage}
+                                    disabled={currentPage === totalPages}
+                                    className="px-3 py-1 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                >
+                                    Last
+                                </button>
+                            </div>
+
+                            {/* Jump to Page */}
+                            <div className="flex gap-2 items-center">
+                                <span className="text-sm text-gray-600">Go to:</span>
+                                <input
+                                    type="number"
+                                    min={1}
+                                    max={totalPages}
+                                    value={currentPage}
+                                    onChange={(e) => {
+                                        const page = parseInt(e.target.value);
+                                        if (!isNaN(page)) {
+                                            goToPage(page);
+                                        }
+                                    }}
+                                    className="border border-gray-300 px-2 py-1 w-20 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                />
+                            </div>
+                        </div>
+                    )}
+                </>
             )}
 
             {/* Create Modal */}
